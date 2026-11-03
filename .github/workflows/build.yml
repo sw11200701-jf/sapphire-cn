@@ -1,0 +1,135 @@
+name: Sapphire Chinese sidebar - UNSIGNED diagnostic
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ runner.temp }}
+    env:
+      SOURCE_SHA: dac4dd52e12cc419c28ebea0664ed1412a44f1e8
+    steps:
+      - name: Initialize diagnostics
+        run: |
+          mkdir -p "$RUNNER_TEMP/sapphire-logs" "$RUNNER_TEMP/sapphire-deliverables"
+          printf 'UNSIGNED diagnostic build. Chinese sidebar only. Not official 3.5. Not notarized. Do not replace your installed app. Same bundle ID and preferences as upstream. No installation or security bypass provided.\n' > "$RUNNER_TEMP/sapphire-deliverables/READ-ME.txt"
+      - name: Checkout fixed parent (not the mixed commit)
+        uses: actions/checkout@v4
+        with:
+          repository: Gliangquan/Sapphire-cn
+          ref: dac4dd52e12cc419c28ebea0664ed1412a44f1e8
+          path: upstream
+          persist-credentials: false
+          submodules: false
+          lfs: false
+      - name: Select installed Xcode 26 (no local Xcode needed)
+        run: |
+          set -euo pipefail
+          python3 -I - <<'PY' >> "$GITHUB_ENV"
+          from pathlib import Path
+          import re
+          options = []
+          for app in Path('/Applications').glob('Xcode_26*.app'):
+              nums = tuple(map(int, re.findall(r'\d+', app.name)))
+              options.append((nums, str(app / 'Contents/Developer')))
+          if not options:
+              raise SystemExit('Xcode 26 not present on this runner; inspect runner image')
+          print('DEVELOPER_DIR=' + max(options)[1])
+          PY
+      - name: Prepare limited Chinese UI and unsigned CI build phases
+        run: |
+          set -euo pipefail
+          test "$(git -C "$GITHUB_WORKSPACE/upstream" rev-parse HEAD)" = "$SOURCE_SHA"
+          cat > "$RUNNER_TEMP/prepare_ci.py" <<'PY'
+          from pathlib import Path
+          import difflib
+          import re
+          import subprocess
+          import sys
+          
+          repo = Path(sys.argv[1]).resolve()
+          logs = Path(sys.argv[2]).resolve()
+          logs.mkdir(parents=True, exist_ok=True)
+          patch = '--- a/Sapphire/App Settings/SettingsSidebar.swift\n+++ b/Sapphire/App Settings/SettingsSidebar.swift\n@@ -15,11 +15,11 @@\n \n extension SettingsSection {\n     static let sidebarGroups: [SettingsSidebarGroup] = [\n-        .init(title: "General", sections: [.general, .keyboardShortcuts, .bluetoothUnlock, .intelligence, .neardrop, .continuity]),\n-        .init(title: "Notch", sections: [.appearance, .widgets, .liveActivities, .lockScreen, .notifications, .hud]),\n-        .init(title: "Widgets & Content", sections: [.music, .weather, .calendar, .sports, .finance, .battery, .audio, .bluetooth, .shortcuts, .fileShelf, .notes, .clipboard, .mirror, .caffeine]),\n-        .init(title: "System & Utilities", sections: [.systemEnhance, .snapZones, .dockLayouts, .mediaOptimizer, .mouse, .monitoring, .devActivity, .emoji, .archives, .apps, .storage]),\n-        .init(title: "Focus & Security", sections: [.eyeBreak, .focusSession, .appLock]),\n+        .init(title: "通用", sections: [.general, .keyboardShortcuts, .bluetoothUnlock, .intelligence, .neardrop, .continuity]),\n+        .init(title: "刘海 / 灵动岛", sections: [.appearance, .widgets, .liveActivities, .lockScreen, .notifications, .hud]),\n+        .init(title: "小组件与内容", sections: [.music, .weather, .calendar, .sports, .finance, .battery, .audio, .bluetooth, .shortcuts, .fileShelf, .notes, .clipboard, .mirror, .caffeine]),\n+        .init(title: "系统与实用工具", sections: [.systemEnhance, .snapZones, .dockLayouts, .mediaOptimizer, .mouse, .monitoring, .devActivity, .emoji, .archives, .apps, .storage]),\n+        .init(title: "专注与安全", sections: [.eyeBreak, .focusSession, .appLock]),\n         .init(title: "", sections: [.about])\n     ]\n }\n@@ -61,7 +61,7 @@\n             Spacer().frame(height: 45)\n \n             // MARK: 1. Search Settings (Top of Sidebar)\n-            ClearableSearchField(placeholder: "Search settings", text: $searchText)\n+            ClearableSearchField(placeholder: "搜索设置项...", text: $searchText)\n             .padding(.horizontal, 12)\n             .padding(.vertical, 10)\n             .background(Color.white.opacity(0.06))\n@@ -136,7 +136,7 @@\n                         .frame(width: 30, height: 30)\n                         .background(Color.red.opacity(0.15))\n                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))\n-                    Text("Quit")\n+                    Text("退出 Sapphire")\n                         .font(.system(size: 15, weight: .medium))\n                         .foregroundStyle(.white)\n                 }\n@@ -221,7 +221,7 @@\n     var body: some View {\n         HStack(spacing: 12) {\n             Image(systemName: section.systemImage).font(.system(size: 11, weight: .bold)).foregroundStyle(.white).frame(width: 22, height: 22).background(LinearGradient(colors: section.iconGradientColors, startPoint: .topLeading, endPoint: .bottomTrailing).opacity(0.8)).clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))\n-            Text(section.label).font(.system(size: 13, weight: .medium)).foregroundStyle(.white)\n+            Text(sapphireChineseSidebarLabel(section.label)).font(.system(size: 13, weight: .medium)).foregroundStyle(.white)\n             Spacer()\n             if isPremiumLocked {\n                 Image(systemName: "lock.fill")\n@@ -230,4 +230,62 @@\n             }\n         }.padding(.vertical, 5)\n     }\n-}\n\\ No newline at end of file\n+}\n+// Presentation-only translations from the Chinese fork; unknown labels stay in English.\n+private func sapphireChineseSidebarLabel(_ english: String) -> String {\n+    let labels: [String: String] = [\n+        "General": "通用",\n+        "Notch": "刘海 / 灵动岛",\n+        "Widgets & Content": "小组件与内容",\n+        "System & Utilities": "系统与实用工具",\n+        "Focus & Security": "专注与安全",\n+        "About": "关于",\n+        "Keyboard Shortcuts": "键盘快捷键",\n+        "Bluetooth Unlock": "蓝牙靠近解锁",\n+        "Authentication": "认证与解锁",\n+        "Intelligence": "AI 智能助理",\n+        "Blip": "AI 助理 (Blip)",\n+        "Nearby Share": "隔空分享 (Nearby)",\n+        "Continuity": "跨端互联",\n+        "Android Continuity": "跨端互联 (Android)",\n+        "Appearance": "外观与动效",\n+        "Widgets": "小组件管理",\n+        "Live Activities": "实时活动",\n+        "Lock Screen": "锁定屏幕",\n+        "Notifications": "通知管理",\n+        "HUD": "系统指示器 (HUD)",\n+        "Music": "音乐与歌词",\n+        "Weather": "天气预报",\n+        "Calendar": "日历日程",\n+        "Sports": "体育赛事",\n+        "Finance": "财经股票",\n+        "Battery": "电池与电源管理",\n+        "Audio": "音频混音与 EQ",\n+        "Bluetooth": "蓝牙外设",\n+        "Shortcuts": "快捷指令",\n+        "File Shelf": "文件暂存架",\n+        "Notes": "便签备忘录",\n+        "Clipboard": "剪贴板历史",\n+        "Mirror": "屏幕镜像",\n+        "Caffeinate": "防休眠保持唤醒",\n+        "System Enhance": "系统交互增强",\n+        "Snap Zones": "窗口吸附分屏",\n+        "Dock Layouts": "程序坞布局",\n+        "Dock": "程序坞",\n+        "Media Optimizer": "媒体性能优化",\n+        "Mouse": "鼠标与滚轮",\n+        "Monitoring": "硬件状态监控",\n+        "Dev Activity": "开发者活动监测",\n+        "Emoji": "表情符号面板",\n+        "Archives": "压缩包与 DMG 管理",\n+        "Archives & DMG": "压缩包与 DMG",\n+        "Apps": "应用程序管理",\n+        "Storage": "磁盘存储分析",\n+        "Eye Break": "护眼休息提醒",\n+        "Focus Session": "专注番茄钟",\n+        "Focus Sessions": "专注模式",\n+        "Focus": "专注模式",\n+        "App Lock": "应用访问锁",\n+    ]\n+    return labels[english] ?? english\n+}\n'
+          patch_path = logs / 'localization.patch'
+          patch_path.write_text(patch)
+          subprocess.run(['git', '-C', str(repo), 'apply', '--check', str(patch_path)], check=True)
+          subprocess.run(['git', '-C', str(repo), 'apply', str(patch_path)], check=True)
+          project = repo / 'Sapphire.xcodeproj/project.pbxproj'
+          text = project.read_text()
+          # CI-only build plumbing: remove missing Firebase input dependency and do not upload symbols
+          # or re-sign a privileged helper. Runtime authorization and entitlements are untouched.
+          for ident, name in [('DA452EBA2EAA5A010070E5C9', 'Resign Sapphire Helper'),
+                              ('DAC019182E9EA03E00CA587F', 'Upload Crashlytics Symbols')]:
+              pattern = r'(?ms)^\t\t' + ident + r' /\* ' + re.escape(name) + r' \*/ = \{.*?^\t\t\};'
+              matches = list(re.finditer(pattern, text))
+              if len(matches) != 1:
+                  raise SystemExit('Expected exactly one build phase: ' + name)
+              block = matches[0].group()
+              if 'isa = PBXShellScriptBuildPhase;' not in block:
+                  raise SystemExit('Unexpected phase type')
+              block, count = re.subn(r'(?ms)inputPaths = \(.*?^\t\t\t\);', 'inputPaths = ();', block)
+              if count != 1:
+                  raise SystemExit('Unexpected inputPaths: ' + name)
+              block, count = re.subn(r'(?ms)shellScript = \(.*?^\t\t\t\);',
+                                    lambda _: 'shellScript = ("echo CI-only unsigned diagnostic: phase skipped", "touch \\"${SCRIPT_OUTPUT_FILE_0}\\"", );', block)
+              if count != 1:
+                  raise SystemExit('Unexpected shellScript: ' + name)
+              text = text[:matches[0].start()] + block + text[matches[0].end():]
+          project.write_text(text)
+          changed = subprocess.check_output(['git', '-C', str(repo), 'diff', '--name-only'], text=True).splitlines()
+          assert set(changed) == {'Sapphire/App Settings/SettingsSidebar.swift', 'Sapphire.xcodeproj/project.pbxproj'}, changed
+          subprocess.run(['git', '-C', str(repo), 'diff', '--check'], check=True)
+          (logs / 'applied.diff').write_bytes(subprocess.check_output(['git', '-C', str(repo), 'diff', '--no-ext-diff']))
+          print('Applied presentation-only Chinese sidebar patch and two CI-only phase skips.')
+          PY
+          python3 -I "$RUNNER_TEMP/prepare_ci.py" "$GITHUB_WORKSPACE/upstream" "$RUNNER_TEMP/sapphire-logs" 2>&1 | tee "$RUNNER_TEMP/sapphire-logs/prepare.log"
+          plutil -lint "$GITHUB_WORKSPACE/upstream/Sapphire.xcodeproj/project.pbxproj" 2>&1 | tee "$RUNNER_TEMP/sapphire-logs/project-lint.log"
+      - name: Inspect and build (no signing, no provisioning)
+        id: compile
+        run: |
+          set -euo pipefail
+          xcodebuild -version 2>&1 | tee "$RUNNER_TEMP/sapphire-logs/xcode-version.log"
+          xcodebuild -list -project "$GITHUB_WORKSPACE/upstream/Sapphire.xcodeproj" 2>&1 | tee "$RUNNER_TEMP/sapphire-logs/project-list.log"
+          xcodebuild -project "$GITHUB_WORKSPACE/upstream/Sapphire.xcodeproj" \
+            -scheme Sapphire -configuration Release -destination 'generic/platform=macOS' \
+            -derivedDataPath "$RUNNER_TEMP/sapphire-derived" \
+            -resultBundlePath "$RUNNER_TEMP/sapphire-logs/Build.xcresult" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= \
+            DEVELOPMENT_TEAM= build 2>&1 | tee "$RUNNER_TEMP/sapphire-logs/build.log"
+      - name: Package only after successful build
+        if: success()
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          apps=("$RUNNER_TEMP/sapphire-derived/Build/Products/Release/"*.app)
+          if [ "${#apps[@]}" -ne 1 ]; then
+            printf 'Expected exactly one main .app, found %s\n' "${#apps[@]}"
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/sapphire-package"
+          ditto "${apps[0]}" "$RUNNER_TEMP/sapphire-package/Sapphire中文实验版-UNSIGNED.app"
+          cp "$RUNNER_TEMP/sapphire-deliverables/READ-ME.txt" "$RUNNER_TEMP/sapphire-package/"
+          ditto -c -k --sequesterRsrc --keepParent "$RUNNER_TEMP/sapphire-package" "$RUNNER_TEMP/sapphire-deliverables/Sapphire-Chinese-Sidebar-UNSIGNED.zip"
+          shasum -a 256 "$RUNNER_TEMP/sapphire-deliverables/Sapphire-Chinese-Sidebar-UNSIGNED.zip" > "$RUNNER_TEMP/sapphire-deliverables/SHA256.txt"
+      - name: Upload diagnostics even after failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sapphire-diagnostics-${{ github.run_id }}
+          path: ${{ runner.temp }}/sapphire-logs
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload unsigned app only after successful build
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sapphire-Chinese-Sidebar-UNSIGNED-${{ github.run_id }}
+          path: ${{ runner.temp }}/sapphire-deliverables
+          if-no-files-found: error
+          retention-days: 14
