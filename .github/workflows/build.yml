@@ -10,7 +10,6 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ${{ runner.temp }}
     env:
       SOURCE_SHA: dac4dd52e12cc419c28ebea0664ed1412a44f1e8
     steps:
